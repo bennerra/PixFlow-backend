@@ -1,8 +1,10 @@
 from rest_framework import serializers
+from rest_framework.validators import UniqueValidator
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 
 User = get_user_model()
+
 
 class CustomUserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(
@@ -18,8 +20,18 @@ class CustomUserSerializer(serializers.ModelSerializer):
         read_only_fields = ('id',)
         extra_kwargs = {
             'name': {'required': True},
-            'username': {'required': True},
-            'email': {'required': True}
+            'username': {'required': True, 'validators': [
+                UniqueValidator(
+                    queryset=User.objects.all(),
+                    message="Пользователь с таким username уже существует."
+                )
+            ]},
+            'email': {'required': True, 'validators': [
+                UniqueValidator(
+                    queryset=User.objects.all(),
+                    message="Пользователь с такой почтой уже существует."
+                )
+            ]}
         }
 
     def validate_email(self, value):
@@ -41,6 +53,7 @@ class CustomUserSerializer(serializers.ModelSerializer):
         )
 
         return user
+
 
 class ProfileSerializer(serializers.ModelSerializer):
     class Meta:

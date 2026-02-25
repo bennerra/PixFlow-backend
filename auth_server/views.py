@@ -1,11 +1,13 @@
 from rest_framework.permissions import IsAuthenticated
+
+from auth_server.models import User
 from auth_server.serializers import CustomUserSerializer, ProfileSerializer
 from django.contrib.auth import authenticate
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.response import Response
 from rest_framework import status
-
+from django.shortcuts import get_object_or_404
 
 class RegistrationAPIView(APIView):
     def post(self, request):
@@ -80,4 +82,13 @@ class ProfileView(APIView):
     def get(self, request):
         user = request.user
         serializer = ProfileSerializer(user)
+        return Response(serializer.data)
+
+class PublicUserDetailView(APIView):
+    permission_classes = []
+    serializer_class = ProfileSerializer
+
+    def get(self, request, pk):
+        user = get_object_or_404(User, id=pk)
+        serializer = self.serializer_class(user)
         return Response(serializer.data)

@@ -1,8 +1,8 @@
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from posts.models import Post
+from posts.models import Post, Like
 from posts.serializers import PostListSerializer, PostDetailSerializer, PostCreateSerializer
 
 
@@ -26,6 +26,8 @@ class PostViewSet(viewsets.ModelViewSet):
         elif self.action == 'create':
             return PostCreateSerializer
         elif self.action == 'my_posts':
+            return PostListSerializer
+        elif self.action == 'user_posts':
             return PostListSerializer
         return super().get_serializer_class()
 
@@ -59,3 +61,40 @@ class PostViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(page, many=True)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticatedForCreate])
+    def user_posts(self, request, pk=None):
+        posts = Post.objects.filter(author=pk)
+        page = self.paginate_queryset(posts)
+
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(page, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticatedForCreate])
+    def like(self, request, pk=None):
+        if not request.user or not request.user.is_authenticated:
+            return Response(
+                {"error": "Требуется авторизация"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        post = self.get_object()
+        user = request.user
+
+        like = Like.objects.filter(user=user, post=post).first()
+
+        if like:
+            like.delete()
+            liked = False
+        else:
+            Like.objects.create(user=user, post=post)
+            liked = True
+
+        return Response({
+            'id': post.id,
+            'count': post.likes.count(),
+            'is_liked': liked
+        }, status=status.HTTP_200_OK)

@@ -131,7 +131,7 @@ SIMPLE_JWT = {
     'BLACKLIST_AFTER_ROTATION': True,
     'ACCESS_TOKEN_LIFETIME': timedelta(days=30),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=60),
-    'AUTH_HEADER_TYPES': ('Bearer',),  # ДОЛЖНО БЫТЬ ТАК
+    'AUTH_HEADER_TYPES': ('Bearer',),
     'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
 }
 

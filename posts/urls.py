@@ -6,6 +6,8 @@ name = 'posts'
 
 urlpatterns = [
     path('posts/', views.PostViewSet.as_view({'get': 'list', 'post': 'create'})),
-    path('posts/<int:pk>', views.PostViewSet.as_view({'get': 'retrieve'})),
+    path('posts/<int:pk>/', views.PostViewSet.as_view({'get': 'retrieve'})),
     path('my_posts/', views.PostViewSet.as_view({'get': 'my_posts'})),
+    path('user_posts/<int:pk>/', views.PostViewSet.as_view({'get': 'user_posts'})),
+    path('posts/like/<int:pk>/', views.PostViewSet.as_view({'post': 'like'})),
 ]

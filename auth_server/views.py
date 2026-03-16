@@ -15,8 +15,8 @@ class RegistrationAPIView(APIView):
 
         if serializer.is_valid():
             user = serializer.save()
-            refresh = RefreshToken.for_user(user)  # Создание Refesh и Access
-            refresh.payload.update({  # Полезная информация в самом токене
+            refresh = RefreshToken.for_user(user)
+            refresh.payload.update({
                 'user_id': user.id,
                 'username': user.username
             })

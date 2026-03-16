@@ -5,6 +5,7 @@ from posts.models import Post
 class PostListSerializer(serializers.ModelSerializer):
     likes_count = serializers.IntegerField(read_only=True)
     short_url = serializers.SerializerMethodField()
+    is_liked = serializers.SerializerMethodField()
 
     def get_likes(self, obj):
         return obj.likes.count()
@@ -15,15 +16,22 @@ class PostListSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(obj.image.url)
         return None
 
+    def get_is_liked(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return obj.likes.filter(user=request.user).exists()
+        return False
+
     class Meta:
         model = Post
-        fields = ['id', 'name', 'likes_count', 'short_url']
+        fields = ['id', 'name', 'likes_count', 'short_url', 'is_liked']
 
 class PostDetailSerializer(serializers.ModelSerializer):
     likes_count = serializers.IntegerField(read_only=True)
     short_url = serializers.SerializerMethodField()
     author_name = serializers.CharField(source='author.username', read_only=True)
     author_id = serializers.CharField(source='author.id', read_only=True)
+    is_liked = serializers.SerializerMethodField()
 
     def get_likes(self, obj):
         return obj.likes.count()
@@ -34,9 +42,15 @@ class PostDetailSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(obj.image.url)
         return None
 
+    def get_is_liked(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return obj.likes.filter(user=request.user).exists()
+        return False
+
     class Meta:
         model = Post
-        fields = ['id', 'name', 'likes_count', 'short_url', 'description', 'author_name', 'author_id']
+        fields = ['id', 'name', 'likes_count', 'short_url', 'description', 'author_name', 'author_id', 'is_liked']
 
 class PostCreateSerializer(serializers.ModelSerializer):
     class Meta:

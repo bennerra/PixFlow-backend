@@ -81,7 +81,7 @@ class ProfileView(APIView):
 
     def get(self, request):
         user = request.user
-        serializer = ProfileSerializer(user)
+        serializer = ProfileSerializer(user, context={'request': request})
         return Response(serializer.data)
 
 class PublicUserDetailView(APIView):

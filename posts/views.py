@@ -1,8 +1,10 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from django.db.models.functions import Lower
 
-from posts.models import Post, Like
+from auth_server.models import User
+from posts.models import Post, Like, Save
 from posts.serializers import PostListSerializer, PostDetailSerializer, PostCreateSerializer
 
 
@@ -29,10 +31,20 @@ class PostViewSet(viewsets.ModelViewSet):
             return PostListSerializer
         elif self.action == 'user_posts':
             return PostListSerializer
+        elif self.action == 'saved_posts':
+            return PostListSerializer
         return super().get_serializer_class()
 
     def get_queryset(self):
-        queryset = Post.objects.all()
+        queryset = Post.objects.all().order_by('-created_at')
+
+        search_value = self.request.query_params.get('searchValue', None)
+
+        if search_value:
+            queryset = queryset.annotate(
+                name_lower=Lower('name')
+            ).filter(name_lower__icontains=search_value.lower())
+
         return queryset
 
     def retrieve(self, request, *args, **kwargs):
@@ -52,7 +64,7 @@ class PostViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'], permission_classes=[IsAuthenticatedForCreate])
     def my_posts(self, request, *args, **kwargs):
-        posts = Post.objects.filter(author=request.user)
+        posts = Post.objects.filter(author=request.user).order_by('-created_at')
         page = self.paginate_queryset(posts)
 
         if page is not None:
@@ -64,7 +76,7 @@ class PostViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'], permission_classes=[IsAuthenticatedForCreate])
     def user_posts(self, request, pk=None):
-        posts = Post.objects.filter(author=pk)
+        posts = Post.objects.filter(author=pk).order_by('-created_at')
         page = self.paginate_queryset(posts)
 
         if page is not None:
@@ -98,3 +110,60 @@ class PostViewSet(viewsets.ModelViewSet):
             'count': post.likes.count(),
             'is_liked': liked
         }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticatedForCreate])
+    def save(self, request, pk=None):
+        """Сохранение/удаление поста из сохраненных"""
+        if not request.user or not request.user.is_authenticated:
+            return Response(
+                {"error": "Требуется авторизация"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        post = self.get_object()
+        user = request.user
+
+        # Проверяем, сохранен ли уже пост
+        saved = Save.objects.filter(user=user, post=post).first()
+
+        if saved:
+            saved.delete()
+            is_saved = False
+        else:
+            Save.objects.create(user=user, post=post)
+            is_saved = True
+
+        return Response({
+            'id': post.id,
+            'saves_count': post.saves.count(),
+            'is_saved': is_saved
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticatedForCreate])
+    def saved_posts(self, request, user_id=None, *args, **kwargs):
+        """Получение сохраненных постов пользователя по ID"""
+        target_user_id = user_id or request.user.id
+
+        try:
+            target_user = User.objects.get(id=target_user_id)
+        except User.DoesNotExist:
+            return Response(
+                {"error": "Пользователь не найден"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        saved_post_ids = Save.objects.filter(
+            user=target_user
+        ).values_list('post_id', flat=True)
+
+        posts = Post.objects.filter(
+            id__in=saved_post_ids
+        ).order_by('-created_at')
+
+        page = self.paginate_queryset(posts)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(posts, many=True)
+        return Response(serializer.data)

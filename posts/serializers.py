@@ -6,6 +6,8 @@ class PostListSerializer(serializers.ModelSerializer):
     likes_count = serializers.IntegerField(read_only=True)
     short_url = serializers.SerializerMethodField()
     is_liked = serializers.SerializerMethodField()
+    saves_count = serializers.IntegerField(source='saves.count', read_only=True)
+    is_saved = serializers.SerializerMethodField()
 
     def get_likes(self, obj):
         return obj.likes.count()
@@ -22,9 +24,15 @@ class PostListSerializer(serializers.ModelSerializer):
             return obj.likes.filter(user=request.user).exists()
         return False
 
+    def get_is_saved(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return obj.saves.filter(user=request.user).exists()
+        return False
+
     class Meta:
         model = Post
-        fields = ['id', 'name', 'likes_count', 'short_url', 'is_liked']
+        fields = ['id', 'name', 'likes_count', 'short_url', 'is_liked', 'saves_count', 'is_saved']
 
 class PostDetailSerializer(serializers.ModelSerializer):
     likes_count = serializers.IntegerField(read_only=True)
@@ -32,6 +40,7 @@ class PostDetailSerializer(serializers.ModelSerializer):
     author_name = serializers.CharField(source='author.username', read_only=True)
     author_id = serializers.CharField(source='author.id', read_only=True)
     is_liked = serializers.SerializerMethodField()
+    is_saved = serializers.SerializerMethodField()
 
     def get_likes(self, obj):
         return obj.likes.count()
@@ -48,9 +57,15 @@ class PostDetailSerializer(serializers.ModelSerializer):
             return obj.likes.filter(user=request.user).exists()
         return False
 
+    def get_is_saved(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return obj.saves.filter(user=request.user).exists()
+        return False
+
     class Meta:
         model = Post
-        fields = ['id', 'name', 'likes_count', 'short_url', 'description', 'author_name', 'author_id', 'is_liked']
+        fields = ['id', 'name', 'likes_count', 'short_url', 'description', 'author_name', 'author_id', 'is_liked', 'is_saved']
 
 class PostCreateSerializer(serializers.ModelSerializer):
     class Meta:

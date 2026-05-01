@@ -1,6 +1,7 @@
 from django.db import models
 from django.urls import reverse
 from django.conf import settings
+from django.core.validators import MinLengthValidator, MaxLengthValidator
 
 from auth_server.models import User
 
@@ -63,3 +64,32 @@ class Save(models.Model):
 
     def __str__(self):
         return f"{self.user.username} saved {self.post.name}"
+
+class Comment(models.Model):
+    text = models.TextField(validators=[
+        MinLengthValidator(1, message='Комментарий не может быть пустым'),
+        MaxLengthValidator(2000, message='Комментарий не может превышать 2000 символов')
+    ], verbose_name='Текст комментария')
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='comments'
+    )
+    post = models.ForeignKey(
+        'Post',
+        on_delete=models.CASCADE,
+        related_name='comments'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Комментарий'
+        verbose_name_plural = 'Комментарии'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['post', '-created_at']),
+            models.Index(fields=['user', '-created_at'])
+        ]
+
+    def __str__(self):
+        return f'Комментарий от {self.user} к {self.post}'

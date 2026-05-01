@@ -1,10 +1,10 @@
+from django.utils import timezone
+
 import jwt
-from datetime import datetime, timedelta
 
 from django.conf import settings
 from django.contrib.auth.base_user import AbstractBaseUser
 from django.contrib.auth.models import ( BaseUserManager, PermissionsMixin )
-
 from django.db import models
 
 # Create your models here.
@@ -70,3 +70,90 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def get_short_name(self):
         return self.username
+
+
+class Subscription(models.Model):
+    follower = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='following',
+        verbose_name='Подписчик'
+    )
+
+    following = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='followers',
+        verbose_name='Автор'
+    )
+
+    created_at = models.DateTimeField(default=timezone.now, verbose_name='Дата подписки')
+
+    is_active = models.BooleanField(default=True, verbose_name='Активна')
+
+    notify_new_posts = models.BooleanField(default=True, verbose_name='Уведомлять о новых постах')
+
+    class Meta:
+        verbose_name = 'Подписка'
+        verbose_name_plural = 'Подписки'
+        ordering = ['-created_at']
+        unique_together = ['follower', 'following']
+        indexes = [
+            models.Index(fields=['follower', '-created_at']),
+            models.Index(fields=['following', '-created_at']),
+            models.Index(fields=['follower', 'is_active']),
+        ]
+
+    def __str__(self):
+        return f'{self.follower.username} подписан на {self.following.username}'
+
+    def save(self, *args, **kwargs):
+        if self.follower == self.following:
+            raise ValueError("Нельзя подписаться на самого себя")
+        super().save(*args, **kwargs)
+
+
+class SubscriptionRequest(models.Model):
+    follower = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='subscription_requests_sent',
+        verbose_name='Подписчик'
+    )
+
+    following = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='subscription_requests_received',
+        verbose_name='Автор'
+    )
+
+    STATUS_CHOICES = [
+        ('pending', 'Ожидает'),
+        ('approved', 'Одобрена'),
+        ('rejected', 'Отклонена'),
+    ]
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending',
+        verbose_name='Статус'
+    )
+
+    message = models.TextField(
+        blank=True,
+        max_length=500,
+        verbose_name='Сообщение'
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Запрос на подписку'
+        verbose_name_plural = 'Запросы на подписку'
+        unique_together = ['follower', 'following']
+
+    def __str__(self):
+        return f'Запрос от {self.follower.username} к {self.following.username}'

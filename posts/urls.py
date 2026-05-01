@@ -13,4 +13,5 @@ urlpatterns = [
     path('posts/save/<int:pk>/', views.PostViewSet.as_view({'post': 'save'})),
     path('saved_posts/', views.PostViewSet.as_view({'get': 'saved_posts'})),
     path('saved_posts/<int:user_id>/', views.PostViewSet.as_view({'get': 'saved_posts'})),
+    path('comments/', views.CommentViewSet.as_view({'get': 'list', 'post': 'create'})),
 ]

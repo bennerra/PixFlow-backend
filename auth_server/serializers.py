@@ -8,6 +8,8 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 
+from auth_server.models import Subscription
+
 User = get_user_model()
 
 class CustomUserSerializer(serializers.ModelSerializer):
@@ -62,6 +64,9 @@ class CustomUserSerializer(serializers.ModelSerializer):
 class ProfileSerializer(serializers.ModelSerializer):
     avatar = serializers.SerializerMethodField()
     date_birth = serializers.SerializerMethodField()
+    is_following = serializers.SerializerMethodField()
+    followers_count = serializers.SerializerMethodField()
+    following_count = serializers.SerializerMethodField()
 
     def get_date_birth(self, obj):
         if obj.date_birth:
@@ -76,9 +81,31 @@ class ProfileSerializer(serializers.ModelSerializer):
             return obj.avatar.url
         return None
 
+    def get_is_following(self, obj):
+        request = self.context.get('request')
+
+        if not request or not request.user.is_authenticated:
+            return False
+
+        if request.user == obj:
+            return False
+
+        return Subscription.objects.filter(
+            follower=request.user,
+            following=obj,
+            is_active=True
+        ).exists()
+
+    def get_followers_count(self, obj):
+        return obj.followers.filter(is_active=True).count()
+
+    def get_following_count(self, obj):
+        return obj.following.filter(is_active=True).count()
+
     class Meta:
         model = User
-        fields = ('id', 'username', 'name', 'email', 'avatar', 'date_birth')
+        fields = ('id', 'username', 'name', 'email', 'avatar', 'date_birth', 'is_following', 'followers_count',
+                  'following_count')
 
 
 class ProfileUpdateSerializer(serializers.ModelSerializer):

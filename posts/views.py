@@ -4,8 +4,9 @@ from rest_framework.response import Response
 from django.db.models.functions import Lower
 
 from auth_server.models import User
-from posts.models import Post, Like, Save
-from posts.serializers import PostListSerializer, PostDetailSerializer, PostCreateSerializer
+from posts.models import Post, Like, Save, Comment
+from posts.serializers import PostListSerializer, PostDetailSerializer, PostCreateSerializer, CommentCreateSerializer, \
+    CommentSerializer
 
 
 class IsAuthenticatedForCreate(permissions.BasePermission):
@@ -167,3 +168,39 @@ class PostViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(posts, many=True)
         return Response(serializer.data)
+
+class CommentViewSet(viewsets.ModelViewSet):
+    queryset = Comment.objects.all()
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return CommentCreateSerializer
+        return CommentSerializer
+
+    def get_queryset(self):
+        queryset = Comment.objects.all()
+
+        post_id = self.request.query_params.get('post_id')
+        if post_id:
+            queryset = queryset.filter(post_id=post_id)
+
+        user_id = self.request.query_params.get('user_id')
+        if user_id:
+            queryset = queryset.filter(user_id=user_id)
+
+        return queryset
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+    def destroy(self, request, *args, **kwargs):
+        comment = self.get_object()
+
+        if comment.user != request.user and not request.user.is_staff:
+            return Response(
+                {'error': 'У вас нет прав на удаление этого комментария'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        return super().destroy(request, *args, **kwargs)

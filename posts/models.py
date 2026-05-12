@@ -5,7 +5,6 @@ from django.core.validators import MinLengthValidator, MaxLengthValidator
 
 from auth_server.models import User
 
-
 # Create your models here.
 class Like(models.Model):
     user = models.ForeignKey('auth_server.User', on_delete=models.CASCADE, related_name='likes')
@@ -18,7 +17,7 @@ class Like(models.Model):
 class Post(models.Model):
     name = models.CharField(max_length=100, verbose_name='Наименование')
     description = models.TextField(blank=True, null=True, verbose_name='Описание')
-    image = models.ImageField(upload_to='media/', null=True, blank=True, verbose_name='Изображение')
+    image = models.FileField(upload_to='media/', null=True, blank=True, verbose_name='Изображение')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата создания')
     author = models.ForeignKey(
         User,
@@ -29,8 +28,8 @@ class Post(models.Model):
 
     class Meta:
         db_table = 'posts'
-        verbose_name = 'Посты'
-        verbose_name_plural = 'Пост'
+        verbose_name = 'Пост'
+        verbose_name_plural = 'Посты'
 
     def __str__(self):
         return self.name
@@ -61,6 +60,8 @@ class Save(models.Model):
     class Meta:
         unique_together = ('user', 'post')
         ordering = ['-created_at']
+        verbose_name = 'Сохраненный пост'
+        verbose_name_plural = 'Сохраненные посты'
 
     def __str__(self):
         return f"{self.user.username} saved {self.post.name}"

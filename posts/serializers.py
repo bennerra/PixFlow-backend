@@ -78,7 +78,7 @@ class PostCreateSerializer(serializers.ModelSerializer):
             import os
 
             ext = os.path.splitext(value.name)[1].lower()
-            allowed_extensions = ['.jpg', '.jpeg', '.gif', '.png', '.webp', '.bpm', '.svg']
+            allowed_extensions = ['.jpg', '.jpeg', '.gif', '.png', '.webp', '.bmp', '.svg']
             if ext not in allowed_extensions:
                 raise serializers.ValidationError(f"Поддерживаются только форматы: {', '.join(allowed_extensions)}")
 

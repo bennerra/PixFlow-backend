@@ -19,6 +19,7 @@ class Post(models.Model):
     description = models.TextField(blank=True, null=True, verbose_name='Описание')
     image = models.FileField(upload_to='media/', null=True, blank=True, verbose_name='Изображение')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата создания')
+    is_commercial = models.BooleanField(default=False, verbose_name='Коммерческий пост')
     author = models.ForeignKey(
         User,
         on_delete=models.CASCADE,

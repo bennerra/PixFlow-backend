@@ -67,6 +67,7 @@ class ProfileSerializer(serializers.ModelSerializer):
     is_following = serializers.SerializerMethodField()
     followers_count = serializers.SerializerMethodField()
     following_count = serializers.SerializerMethodField()
+    premium_until = serializers.DateTimeField(read_only=True)
 
     def get_date_birth(self, obj):
         if obj.date_birth:
@@ -105,7 +106,7 @@ class ProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ('id', 'username', 'name', 'email', 'avatar', 'date_birth', 'is_following', 'followers_count',
-                  'following_count')
+                  'following_count', "is_premium", 'premium_until')
 
 
 class ProfileUpdateSerializer(serializers.ModelSerializer):

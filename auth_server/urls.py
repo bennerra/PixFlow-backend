@@ -4,11 +4,12 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 from auth_server.serializers import ProfileUpdateView
 from auth_server.views import RegistrationAPIView, LoginAPIView, LogoutAPIView, ProfileView, PublicUserDetailView, \
-    SubscriptionViewSet
+    SubscriptionViewSet, PremiumSubscriptionViewSet
 
 app_name = 'auth_server'
 router = DefaultRouter()
 router.register('subscriptions', SubscriptionViewSet, basename='subscriptions')
+router.register('premium', PremiumSubscriptionViewSet, basename='premium')
 
 urlpatterns = [
     path('token/create/', RegistrationAPIView.as_view(), name='token_create'),
@@ -16,7 +17,7 @@ urlpatterns = [
     path('logout/', LogoutAPIView.as_view(), name='logout'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('users/me/', ProfileView.as_view(), name='users_me'),
-    path('users/<int:pk>/', PublicUserDetailView.as_view(), name='users_profile'),
+    path('users/<str:username>/', PublicUserDetailView.as_view(), name='users_profile'),
     path('users/update/', ProfileUpdateView.as_view(), name='profile-update'),
     path('', include(router.urls)),
 ]

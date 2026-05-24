@@ -9,6 +9,10 @@ from rest_framework.response import Response
 from rest_framework import status, permissions, viewsets
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import action
+from rest_framework.viewsets import ViewSet
+
+from django.utils import timezone
+from datetime import timedelta
 
 from posts.serializers import SubscriptionActionSerializer, FollowerSerializer, FollowingSerializer, \
     SubscriptionRequestSerializer
@@ -93,8 +97,8 @@ class PublicUserDetailView(APIView):
     permission_classes = []
     serializer_class = ProfileSerializer
 
-    def get(self, request, pk):
-        user = get_object_or_404(User, id=pk)
+    def get(self, request, username):
+        user = get_object_or_404(User, username=username)
         serializer = self.serializer_class(user, context={'request': request})
         return Response(serializer.data)
 
@@ -110,10 +114,19 @@ class SubscriptionViewSet(viewsets.GenericViewSet):
         serializer = SubscriptionActionSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
 
-        user_id = serializer.validated_data['user_id']
-        following_user = get_object_or_404(User, id=user_id)
+        user_identifier = serializer.validated_data['user_identifier']
 
-        # Проверяем, есть ли уже подписка
+        try:
+            user_id = int(user_identifier)
+            following_user = User.objects.get(id=user_id)
+        except (ValueError, User.DoesNotExist):
+            try:
+                following_user = User.objects.get(username=user_identifier)
+            except User.DoesNotExist:
+                return Response({
+                    'error': 'Пользователь не найден'
+                }, status=status.HTTP_404_NOT_FOUND)
+
         subscription, created = Subscription.objects.get_or_create(
             follower=request.user,
             following=following_user,
@@ -121,7 +134,6 @@ class SubscriptionViewSet(viewsets.GenericViewSet):
         )
 
         if not created and not subscription.is_active:
-            # Реактивируем подписку
             subscription.is_active = True
             subscription.save()
             created = True
@@ -143,8 +155,18 @@ class SubscriptionViewSet(viewsets.GenericViewSet):
         serializer = SubscriptionActionSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
 
-        user_id = serializer.validated_data['user_id']
-        following_user = get_object_or_404(User, id=user_id)
+        user_identifier = serializer.validated_data['user_identifier']
+
+        try:
+            user_id = int(user_identifier)
+            following_user = User.objects.get(id=user_id)
+        except (ValueError, User.DoesNotExist):
+            try:
+                following_user = User.objects.get(username=user_identifier)
+            except User.DoesNotExist:
+                return Response({
+                    'error': 'Пользователь не найден'
+                }, status=status.HTTP_404_NOT_FOUND)
 
         try:
             subscription = Subscription.objects.get(
@@ -168,10 +190,18 @@ class SubscriptionViewSet(viewsets.GenericViewSet):
     @action(detail=False, methods=['get'])
     def followers(self, request):
         """Получить список подписчиков текущего пользователя"""
-        user_id = request.query_params.get('user_id')
+        user_identifier = request.query_params.get('user_identifier')
 
-        if user_id:
-            user = get_object_or_404(User, id=user_id)
+        if user_identifier:
+            try:
+                user = User.objects.get(id=user_identifier)
+            except User.DoesNotExist:
+                try:
+                    user = User.objects.get(username=user_identifier)
+                except User.DoesNotExist:
+                    return Response({
+                        'error': 'Пользователь не найден'
+                    }, status=status.HTTP_404_NOT_FOUND)
         else:
             user = request.user
 
@@ -180,7 +210,6 @@ class SubscriptionViewSet(viewsets.GenericViewSet):
             is_active=True
         ).select_related('follower')
 
-        # Пагинация
         page = self.paginate_queryset(subscriptions)
         if page is not None:
             serializer = FollowerSerializer(page, many=True, context={'request': request})
@@ -192,10 +221,18 @@ class SubscriptionViewSet(viewsets.GenericViewSet):
     @action(detail=False, methods=['get'])
     def following(self, request):
         """Получить список подписок текущего пользователя"""
-        user_id = request.query_params.get('user_id')
+        user_identifier = request.query_params.get('user_identifier')
 
-        if user_id:
-            user = get_object_or_404(User, id=user_id)
+        if user_identifier:
+            try:
+                user = User.objects.get(id=user_identifier)
+            except User.DoesNotExist:
+                try:
+                    user = User.objects.get(username=user_identifier)
+                except User.DoesNotExist:
+                    return Response({
+                        'error': 'Пользователь не найден'
+                    }, status=status.HTTP_404_NOT_FOUND)
         else:
             user = request.user
 
@@ -204,7 +241,6 @@ class SubscriptionViewSet(viewsets.GenericViewSet):
             is_active=True
         ).select_related('following')
 
-        # Пагинация
         page = self.paginate_queryset(subscriptions)
         if page is not None:
             serializer = FollowingSerializer(page, many=True, context={'request': request})
@@ -337,3 +373,70 @@ class SubscriptionViewSet(viewsets.GenericViewSet):
 
         serializer = SubscriptionRequestSerializer(requests, many=True)
         return Response(serializer.data)
+
+class PremiumSubscriptionViewSet(ViewSet):
+    """ViewSet для управления премиум‑подписками"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    @action(detail=False, methods=['post'])
+    def purchase(self, request):
+        """Оформить премиум‑подписку с указанием срока"""
+        user = request.user
+        duration_months = request.data.get('duration_months', 1)
+
+        valid_durations = [1, 3, 6, 12]
+        if duration_months not in valid_durations:
+            return Response({
+                'error': f'Недопустимый срок. Доступные варианты: {valid_durations} месяцев'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if user.is_premium and user.premium_until:
+            if user.premium_until > timezone.now():
+                return Response({
+                    'status': 'already_premium',
+                    'message': f'У вас уже есть активная премиум‑подписка до {user.premium_until.strftime("%d.%m.%Y")}'
+                }, status=status.HTTP_200_OK)
+
+        premium_until = timezone.now() + timedelta(days=duration_months * 30)
+
+        user.is_premium = True
+        user.premium_until = premium_until
+        user.save()
+
+        return Response({
+            'status': 'premium_purchased',
+            'message': f'Премиум‑подписка на {duration_months} месяц(ев) успешно оформлена!',
+            'premium_until': user.premium_until.isoformat(),
+            'duration_months': duration_months
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'])
+    def status(self, request):
+        """Получить текущий статус премиум‑подписки"""
+        user = request.user
+
+        return Response({
+            'is_premium': user.is_premium,
+            'premium_until': user.premium_until.isoformat() if user.premium_until else None,
+            'is_active': user.is_premium and (user.premium_until is None or user.premium_until > timezone.now())
+        })
+
+    @action(detail=False, methods=['post'])
+    def cancel(self, request):
+        """Отменить премиум‑подписку"""
+        user = request.user
+
+        if not user.is_premium:
+            return Response({
+                'status': 'not_premium',
+                'message': 'У вас нет активной премиум‑подписки'
+            }, status=status.HTTP_200_OK)
+
+        user.is_premium = False
+        user.premium_until = None
+        user.save()
+
+        return Response({
+            'status': 'cancelled',
+            'message': 'Премиум‑подписка успешно отменена'
+        }, status=status.HTTP_200_OK)

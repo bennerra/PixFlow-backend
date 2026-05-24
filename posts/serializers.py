@@ -248,7 +248,10 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
 class SubscriptionActionSerializer(serializers.Serializer):
     """Сериализатор для действия подписки"""
-    user_id = serializers.IntegerField(required=True)
+    user_identifier = serializers.CharField(
+        max_length=150,
+        help_text='ID пользователя или username'
+    )
 
     def validate_user_id(self, value):
         if value == self.context['request'].user.id:

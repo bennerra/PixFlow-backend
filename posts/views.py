@@ -17,7 +17,6 @@ class IsAuthenticatedForCreate(permissions.BasePermission):
         # Для остальных методов (POST, PUT, DELETE) проверяем аутентификацию
         return request.user and request.user.is_authenticated
 
-# Create your views here.
 class PostViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticatedForCreate]
 
@@ -37,10 +36,15 @@ class PostViewSet(viewsets.ModelViewSet):
         return super().get_serializer_class()
 
     def get_queryset(self):
+        user = self.request.user
         queryset = Post.objects.all().order_by('-created_at')
 
-        search_value = self.request.query_params.get('searchValue', None)
+        if user.is_authenticated and user.is_premium:
+            queryset = queryset.filter(is_commercial=False)
+        else:
+            pass
 
+        search_value = self.request.query_params.get('searchValue', None)
         if search_value:
             queryset = queryset.annotate(
                 name_lower=Lower('name')
@@ -77,14 +81,34 @@ class PostViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'], permission_classes=[IsAuthenticatedForCreate])
     def user_posts(self, request, pk=None):
-        posts = Post.objects.filter(author=pk).order_by('-created_at')
+        user_identifier = request.query_params.get('user_id') or request.query_params.get('username')
+
+        if not user_identifier:
+            return Response(
+                {'error': 'Требуется параметр user_id или username'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            user_id = int(user_identifier)
+            user = User.objects.get(id=user_id)
+        except (ValueError, User.DoesNotExist):
+            try:
+                user = User.objects.get(username=user_identifier)
+            except User.DoesNotExist:
+                return Response(
+                    {'error': f'Пользователь "{user_identifier}" не найден'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+        posts = Post.objects.filter(author=user).order_by('-created_at')
         page = self.paginate_queryset(posts)
 
         if page is not None:
             serializer = self.get_serializer(page, many=True)
             return self.get_paginated_response(serializer.data)
 
-        serializer = self.get_serializer(page, many=True)
+        serializer = self.get_serializer(posts, many=True)
         return Response(serializer.data)
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticatedForCreate])

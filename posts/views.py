@@ -165,17 +165,33 @@ class PostViewSet(viewsets.ModelViewSet):
         }, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticatedForCreate])
-    def saved_posts(self, request, user_id=None, *args, **kwargs):
-        """Получение сохраненных постов пользователя по ID"""
-        target_user_id = user_id or request.user.id
+    def saved_posts(self, request):
+        """Получение сохраненных постов пользователя по username или user_id"""
+        user_id = request.query_params.get('user_id')
+        username = request.query_params.get('username')
 
-        try:
-            target_user = User.objects.get(id=target_user_id)
-        except User.DoesNotExist:
+        if not user_id and not username:
             return Response(
-                {"error": "Пользователь не найден"},
-                status=status.HTTP_404_NOT_FOUND
+                {"error": "Требуется параметр user_id или username"},
+                status=status.HTTP_400_BAD_REQUEST
             )
+
+        if user_id:
+            try:
+                target_user = User.objects.get(id=user_id)
+            except User.DoesNotExist:
+                return Response(
+                    {"error": f"Пользователь с id={user_id} не найден"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        else:
+            try:
+                target_user = User.objects.get(username=username)
+            except User.DoesNotExist:
+                return Response(
+                    {"error": f"Пользователь с username='{username}' не найден"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
 
         saved_post_ids = Save.objects.filter(
             user=target_user

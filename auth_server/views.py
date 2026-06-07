@@ -1,7 +1,7 @@
 from rest_framework.permissions import IsAuthenticated
 
 from auth_server.models import User, Subscription, SubscriptionRequest
-from auth_server.serializers import CustomUserSerializer, ProfileSerializer
+from auth_server.serializers import CustomUserSerializer, ProfileSerializer, ProfileUpdateSerializer
 from django.contrib.auth import authenticate
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -10,12 +10,13 @@ from rest_framework import status, permissions, viewsets
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import action
 from rest_framework.viewsets import ViewSet
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.generics import UpdateAPIView
 
 from django.utils import timezone
 from datetime import timedelta
 
-from posts.serializers import SubscriptionActionSerializer, FollowerSerializer, FollowingSerializer, \
-    SubscriptionRequestSerializer
+from posts.serializers import SubscriptionActionSerializer, FollowerSerializer, FollowingSerializer, SubscriptionRequestSerializer
 
 
 class RegistrationAPIView(APIView):
@@ -32,7 +33,7 @@ class RegistrationAPIView(APIView):
 
             return Response({
                 'refresh': str(refresh),
-                'access': str(refresh.access_token),  # Отправка на клиент
+                'access': str(refresh.access_token),
             }, status=status.HTTP_201_CREATED)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -440,3 +441,43 @@ class PremiumSubscriptionViewSet(ViewSet):
             'status': 'cancelled',
             'message': 'Премиум‑подписка успешно отменена'
         }, status=status.HTTP_200_OK)
+
+
+class ProfileUpdateView(UpdateAPIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+    serializer_class = ProfileUpdateSerializer
+
+    def put(self, request):
+        serializer = ProfileUpdateSerializer(
+            instance=request.user,
+            data=request.data,
+            partial=False,
+            context={'request': request}
+        )
+
+        if serializer.is_valid():
+            user = serializer.save()
+            return Response({
+                'message': 'Профиль успешно обновлен',
+                'user': ProfileSerializer(user).data
+            }, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def patch(self, request):
+        serializer = ProfileUpdateSerializer(
+            instance=request.user,
+            data=request.data,
+            partial=True,
+            context={'request': request}
+        )
+
+        if serializer.is_valid():
+            user = serializer.save()
+            return Response({
+                'message': 'Профиль успешно обновлен',
+                'user': ProfileSerializer(user).data
+            }, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

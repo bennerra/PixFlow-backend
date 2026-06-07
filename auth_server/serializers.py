@@ -6,7 +6,6 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.parsers import MultiPartParser, FormParser
 
 from auth_server.models import Subscription
 
@@ -191,43 +190,3 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
 
         instance.save()
         return instance
-
-
-class ProfileUpdateView(APIView):
-    permission_classes = [IsAuthenticated]
-    parser_classes = [MultiPartParser, FormParser]
-    serializer_class = ProfileUpdateSerializer
-
-    def put(self, request):
-        serializer = ProfileUpdateSerializer(
-            instance=request.user,
-            data=request.data,
-            partial=False,
-            context={'request': request}
-        )
-
-        if serializer.is_valid():
-            user = serializer.save()
-            return Response({
-                'message': 'Профиль успешно обновлен',
-                'user': ProfileSerializer(user).data
-            }, status=status.HTTP_200_OK)
-
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def patch(self, request):
-        serializer = ProfileUpdateSerializer(
-            instance=request.user,
-            data=request.data,
-            partial=True,
-            context={'request': request}
-        )
-
-        if serializer.is_valid():
-            user = serializer.save()
-            return Response({
-                'message': 'Профиль успешно обновлен',
-                'user': ProfileSerializer(user).data
-            }, status=status.HTTP_200_OK)
-
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

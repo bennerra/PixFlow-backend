@@ -2,9 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from auth_server.serializers import ProfileUpdateView
-from auth_server.views import RegistrationAPIView, LoginAPIView, LogoutAPIView, ProfileView, PublicUserDetailView, \
-    SubscriptionViewSet, PremiumSubscriptionViewSet
+from auth_server.views import RegistrationAPIView, LoginAPIView, LogoutAPIView, ProfileView, PublicUserDetailView, SubscriptionViewSet, PremiumSubscriptionViewSet, ProfileUpdateView
 
 app_name = 'auth_server'
 router = DefaultRouter()
@@ -17,7 +15,7 @@ urlpatterns = [
     path('logout/', LogoutAPIView.as_view(), name='logout'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('users/me/', ProfileView.as_view(), name='users_me'),
-    path('users/<str:username>/', PublicUserDetailView.as_view(), name='users_profile'),
     path('users/update/', ProfileUpdateView.as_view(), name='profile-update'),
+    path('users/<str:username>/', PublicUserDetailView.as_view(), name='users_profile'),
     path('', include(router.urls)),
 ]

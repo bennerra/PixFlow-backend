@@ -11,6 +11,11 @@ from auth_server.models import Subscription
 
 User = get_user_model()
 
+class VKOAuthSerializer(serializers.Serializer):
+    code = serializers.CharField(required=True)
+    device_id = serializers.CharField(required=False, allow_blank=True)
+    state = serializers.CharField(required=False, allow_blank=True)
+
 class CustomUserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(
         write_only=True,

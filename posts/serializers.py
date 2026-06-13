@@ -38,7 +38,7 @@ class PostListSerializer(serializers.ModelSerializer):
 class PostDetailSerializer(serializers.ModelSerializer):
     likes_count = serializers.IntegerField(read_only=True)
     short_url = serializers.SerializerMethodField()
-    author_name = serializers.CharField(source='author.username', read_only=True)
+    author_name = serializers.CharField(source='author.name', read_only=True)
     author_id = serializers.CharField(source='author.id', read_only=True)
     is_liked = serializers.SerializerMethodField()
     is_saved = serializers.SerializerMethodField()

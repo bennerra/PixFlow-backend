@@ -1,7 +1,7 @@
 from rest_framework.permissions import IsAuthenticated
-
+import requests
 from auth_server.models import User, Subscription, SubscriptionRequest
-from auth_server.serializers import CustomUserSerializer, ProfileSerializer, ProfileUpdateSerializer
+from auth_server.serializers import CustomUserSerializer, ProfileSerializer, ProfileUpdateSerializer, VKOAuthSerializer
 from django.contrib.auth import authenticate
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -17,7 +17,143 @@ from django.utils import timezone
 from datetime import timedelta
 
 from posts.serializers import SubscriptionActionSerializer, FollowerSerializer, FollowingSerializer, SubscriptionRequestSerializer
+from settings import settings
 
+
+class VKOAuthView(APIView):
+    """Обработка авторизации через VK ID"""
+    permission_classes = []
+    serializer_class = VKOAuthSerializer
+
+    def post(self, request):
+        serializer = VKOAuthSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        code = serializer.validated_data['code']
+        device_id = serializer.validated_data['device_id']
+        print(device_id)
+        try:
+            # 1. Обмениваем code на access_token
+            token_url = 'https://id.vk.com/oauth2/auth'
+            token_params = {
+                'grant_type': 'authorization_code',
+                'state': "01234567890123456789012345678912",
+                'code_verifier': 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk',
+                'device_id': device_id,
+                'client_id': settings.VK_CLIENT_ID,
+                'client_secret': settings.VK_CLIENT_SECRET,
+                'redirect_uri': settings.VK_REDIRECT_URI,
+                'code': code,
+            }
+
+            response = requests.post(token_url, data=token_params)
+            response.raise_for_status()
+            token_data = response.json()
+
+            # 2. Получаем данные пользователя
+            access_token = token_data.get('access_token')
+            user_id = token_data.get('user_id')
+            email = token_data.get('email')
+
+            if not access_token or not user_id:
+                return Response(
+                    {'error': 'Не удалось получить токен или ID пользователя'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # 3. Получаем информацию о пользователе
+            user_info_url = 'https://api.vk.com/method/users.get'
+            user_info_params = {
+                'access_token': access_token,
+                'user_ids': user_id,
+                'fields': 'first_name,last_name,photo_100',
+                'v': settings.VK_API_VERSION
+            }
+
+            user_info_response = requests.get(user_info_url, params=user_info_params)
+            user_info_response.raise_for_status()
+            user_info_data = user_info_response.json()
+
+            if 'error' in user_info_data:
+                return Response(
+                    {'error': user_info_data['error'].get('error_msg', 'Ошибка получения данных пользователя')},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            vk_user = user_info_data['response'][0]
+            vk_id = str(user_id)
+
+            # 4. Ищем или создаем пользователя в БД
+            user = self.get_or_create_user(
+                vk_id=vk_id,
+                email=email,
+                first_name=vk_user.get('first_name', ''),
+                last_name=vk_user.get('last_name', ''),
+                avatar_url=vk_user.get('photo_100', '')
+            )
+
+            # 5. Генерируем JWT токены
+            refresh = RefreshToken.for_user(user)
+            refresh.payload.update({
+                'user_id': user.id,
+                'username': user.username
+            })
+
+            return Response({
+                'refresh': str(refresh),
+                'access': str(refresh.access_token),
+                'user': {
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'name': user.name
+                }
+            }, status=status.HTTP_200_OK)
+
+        except requests.exceptions.RequestException as e:
+            return Response(
+                {'error': f'Ошибка при обращении к VK API: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            return Response(
+                {'error': f'Внутренняя ошибка сервера: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def get_or_create_user(self, vk_id, email, first_name, last_name, avatar_url):
+        """Создает или обновляет пользователя на основе данных из VK"""
+
+        # Генерируем username на основе VK ID
+        username = f"vk_{vk_id}"
+        name = f"{first_name} {last_name}".strip() or "Пользователь VK"
+
+        # Ищем пользователя по email или username
+        user = None
+        if email:
+            user = User.objects.filter(email=email).first()
+
+        if not user:
+            user = User.objects.filter(username=username).first()
+
+        if user:
+            # Обновляем существующего пользователя
+            user.name = name
+            if not user.avatar and avatar_url:
+                # Здесь можно скачать аватар с VK и сохранить локально
+                pass
+            user.save()
+        else:
+            # Создаем нового пользователя
+            user = User.objects.create_user(
+                username=username,
+                email=email or f"{vk_id}@vk.user",
+                name=name,
+                password=None  # Пользователи через VK входят без пароля
+            )
+
+        return user
 
 class RegistrationAPIView(APIView):
     def post(self, request):

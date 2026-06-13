@@ -11,6 +11,16 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 from datetime import timedelta
 from pathlib import Path
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# VK OAuth Settings
+VK_CLIENT_ID = os.getenv('VK_CLIENT_ID', '54628633')
+VK_CLIENT_SECRET = os.getenv('VK_CLIENT_SECRET', 'your_client_secret_here')
+VK_REDIRECT_URI = os.getenv('VK_REDIRECT_URI', 'https://localhost/vk_auth')
+VK_API_VERSION = '5.199'
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
